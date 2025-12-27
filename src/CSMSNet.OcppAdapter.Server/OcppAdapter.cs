@@ -29,14 +29,14 @@ public class OcppAdapter : IOcppAdapter, IHostedService
     private readonly ICallMatcher _callMatcher;
     private readonly IMessageRouter _messageRouter;
     private readonly IRequestHandler _requestHandler;
-    private readonly CommandHandler _commandHandler;
-    private readonly WebSocketServer _webSocketServer;
-    private readonly ILogger<WebSocketServer>? _webSocketLogger;
+    private readonly OcppCommandSender _commandSender;
+    private readonly OcppWebSocketHandler _webSocketHandler;
+    private readonly ILogger<OcppWebSocketHandler>? _webSocketLogger;
 
     public OcppAdapter(
         OcppAdapterConfiguration configuration,
         ILogger<OcppAdapter>? logger = null,
-        ILogger<WebSocketServer>? webSocketLogger = null)
+        ILogger<OcppWebSocketHandler>? webSocketLogger = null)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _logger = logger;
@@ -48,104 +48,22 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         _connectionManager = new ConnectionManager(_configuration);
         _callMatcher = new CallMatcher(_configuration);
         
-        // 创建RequestHandler (先不带Router)
-        var requestHandlerImpl = new RequestHandler(_stateCache, null!, _configuration);
-        _requestHandler = requestHandlerImpl;
+        // 创建RequestHandler (无需Router)
+        _requestHandler = new RequestHandler(_stateCache, _configuration, null, _connectionManager);
         
         // 创建Router (带RequestHandler)
         _messageRouter = new MessageRouter(_protocolHandler, _requestHandler, _callMatcher, _connectionManager, _configuration);
         
-        // 重新创建RequestHandler (带Router) - 为了解决循环依赖，这里使用反射或者直接创建新的实例比较好
-        // 但由于RequestHandler内部只依赖IMessageRouter接口，我们可以通过反射设置私有字段，或者修改构造逻辑。
-        // 为了简单起见，我们重新创建一个新的RequestHandler，并将旧的丢弃。
-        // 更好的做法是使用Setter注入或者延迟加载，但这里我们直接重新创建。
-        _requestHandler = new RequestHandler(_stateCache, _messageRouter, _configuration, null); // Logger暂空或者传入
+        // 初始化CommandSender
+        _commandSender = new OcppCommandSender(_protocolHandler, _callMatcher, _connectionManager, _configuration);
         
-        // 实际上，MessageRouter依赖RequestHandler, RequestHandler依赖MessageRouter。
-        // 这是一个典型的循环依赖。
-        // 我们可以让MessageRouter只依赖IRequestHandler接口，而RequestHandler依赖IMessageRouter接口。
-        // 解决办法：
-        // 1. 使用属性注入 (Setter Injection)
-        // 2. 使用Lazy<T>
-        // 3. 在MessageRouter中延迟获取RequestHandler (如果支持)
-        
-        // 当前代码结构中，RequestHandler需要MessageRouter来发送响应。MessageRouter需要RequestHandler来分发请求。
-        // 我们修改一下MessageRouter的构造，允许后续设置RequestHandler? 不，MessageRouter是核心。
-        // 让我们看看MessageRouter的代码，它需要IRequestHandler。
-        
-        // 我们可以先创建MessageRouter，传入一个空的RequestHandler代理，然后再设置真正的Handler?
-        // 或者，我们可以修改RequestHandler，使其MessageRouter属性可设置。
-        
-        // 这里采用最简单的方法：重新创建Router，这次传入真正的RequestHandler。
-        // 这里的循环依赖必须解开。
-        // 方案：MessageRouter 不直接依赖 RequestHandler，而是依赖一个 IRequestDispatcher 接口?
-        // 或者，我们可以创建一个 IMessageSender 接口供 RequestHandler 使用，MessageRouter 实现它。
-        
-        // 为了不改动太多现有代码，我们这里使用一种稍微“脏”一点的方法：
-        // 既然我们控制了实例化，我们可以先创建Router，传入null的Handler（如果允许），然后再设置。
-        // 但MessageRouter构造函数要求非空。
-        
-        // 让我们检查一下RequestHandler的构造函数。它需要IMessageRouter。
-        // 让我们检查一下MessageRouter的构造函数。它需要IRequestHandler。
-        
-        // 这是一个死锁。必须打破。
-        // 我们修改MessageRouter，使其允许RequestHandler为null，并提供SetRequestHandler方法?
-        // 或者，我们使用一个中间层。
-        
-        // 鉴于我不能轻易修改MessageRouter的签名（它在之前步骤中已被确立），我将使用一个Wrapper。
-        // 但实际上，在C#中，引用类型是引用传递的。
-        // 我们可以创建一个实现了IRequestHandler的Wrapper类。
-        
-        var requestHandlerWrapper = new RequestHandlerWrapper();
-        _messageRouter = new MessageRouter(_protocolHandler, requestHandlerWrapper, _callMatcher, _connectionManager, _configuration);
-        
-        // 现在创建真正的RequestHandler，传入Router
-        var realRequestHandler = new RequestHandler(_stateCache, _messageRouter, _configuration, null, _connectionManager);
-        
-        // 将真正的Handler注入Wrapper
-        requestHandlerWrapper.SetInner(realRequestHandler);
-        _requestHandler = realRequestHandler;
-        
-        // 初始化CommandHandler
-        _commandHandler = new CommandHandler(_protocolHandler, _callMatcher, _connectionManager, _configuration);
-        
-        // 初始化WebSocketServer (注入this以访问状态)
-        _webSocketServer = new WebSocketServer(_configuration, _connectionManager, _messageRouter, _webSocketLogger, this);
+        // 初始化WebSocketHandler (注入this以访问状态)
+        _webSocketHandler = new OcppWebSocketHandler(_configuration, _connectionManager, _messageRouter, _webSocketLogger, this);
         
         // 绑定事件
         BindEvents();
     }
     
-    // 用于解决循环依赖的Wrapper
-    private class RequestHandlerWrapper : IRequestHandler
-    {
-        private IRequestHandler? _inner;
-        
-        public void SetInner(IRequestHandler inner) => _inner = inner;
-
-        public event EventHandler<BootNotificationEventArgs>? OnBootNotification { add { } remove { } }
-        public event EventHandler<HeartbeatEventArgs>? OnHeartbeat { add { } remove { } }
-        public event EventHandler<StatusNotificationEventArgs>? OnStatusNotification { add { } remove { } }
-        public event EventHandler<AuthorizeEventArgs>? OnAuthorize { add { } remove { } }
-        public event EventHandler<StartTransactionEventArgs>? OnStartTransaction { add { } remove { } }
-        public event EventHandler<StopTransactionEventArgs>? OnStopTransaction { add { } remove { } }
-        public event EventHandler<MeterValuesEventArgs>? OnMeterValues { add { } remove { } }
-        public event EventHandler<DataTransferEventArgs>? OnDataTransfer { add { } remove { } }
-        public event EventHandler<DiagnosticsStatusNotificationEventArgs>? OnDiagnosticsStatusNotification { add { } remove { } }
-        public event EventHandler<FirmwareStatusNotificationEventArgs>? OnFirmwareStatusNotification { add { } remove { } }
-
-        public Task HandleRequestAsync(string chargePointId, OcppRequest request)
-        {
-            if (_inner == null) throw new InvalidOperationException("RequestHandler not initialized");
-            return _inner.HandleRequestAsync(chargePointId, request);
-        }
-        
-        // Wrapper需要转发事件订阅吗？
-        // 实际上MessageRouter只调用HandleRequestAsync，不订阅事件。
-        // 事件是由OcppAdapter订阅的，它订阅的是_requestHandler (即realRequestHandler)。
-        // 所以Wrapper不需要处理事件。
-    }
-
     private void BindEvents()
     {
         // 绑定RequestHandler事件
@@ -163,6 +81,8 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         // 绑定ConnectionManager事件
         _connectionManager.OnChargePointConnected += (s, e) => OnChargePointConnected?.Invoke(this, e);
         _connectionManager.OnChargePointDisconnected += (s, e) => OnChargePointDisconnected?.Invoke(this, e);
+        _connectionManager.OnSessionCreated += (s, e) => OnSessionCreated?.Invoke(this, e);
+        _connectionManager.OnSessionClosed += (s, e) => OnSessionClosed?.Invoke(this, e);
     }
 
     /// <summary>
@@ -205,7 +125,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
     /// </summary>
     public Task HandleWebSocketAsync(HttpContext context)
     {
-        return _webSocketServer.HandleWebSocketAsync(context);
+        return _webSocketHandler.HandleWebSocketAsync(context);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -268,6 +188,8 @@ public class OcppAdapter : IOcppAdapter, IHostedService
 
     public event EventHandler<ChargePointConnectedEventArgs>? OnChargePointConnected;
     public event EventHandler<ChargePointDisconnectedEventArgs>? OnChargePointDisconnected;
+    public event EventHandler<ChargePointConnectedEventArgs>? OnSessionCreated;
+    public event EventHandler<ChargePointDisconnectedEventArgs>? OnSessionClosed;
     public event EventHandler<BootNotificationEventArgs>? OnBootNotification;
     public event EventHandler<StatusNotificationEventArgs>? OnStatusNotification;
     public event EventHandler<StartTransactionEventArgs>? OnStartTransaction;
@@ -288,7 +210,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         RemoteStartTransactionRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.RemoteStartTransactionAsync(chargePointId, request, cancellationToken);
+        return _commandSender.RemoteStartTransactionAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<RemoteStopTransactionResponse> RemoteStopTransactionAsync(
@@ -296,7 +218,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         RemoteStopTransactionRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.RemoteStopTransactionAsync(chargePointId, request, cancellationToken);
+        return _commandSender.RemoteStopTransactionAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<ResetResponse> ResetAsync(
@@ -304,7 +226,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         ResetRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.ResetAsync(chargePointId, request, cancellationToken);
+        return _commandSender.ResetAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<UnlockConnectorResponse> UnlockConnectorAsync(
@@ -312,7 +234,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         UnlockConnectorRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.UnlockConnectorAsync(chargePointId, request, cancellationToken);
+        return _commandSender.UnlockConnectorAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<GetConfigurationResponse> GetConfigurationAsync(
@@ -320,7 +242,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         GetConfigurationRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.GetConfigurationAsync(chargePointId, request, cancellationToken);
+        return _commandSender.GetConfigurationAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<ChangeConfigurationResponse> ChangeConfigurationAsync(
@@ -328,7 +250,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         ChangeConfigurationRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.ChangeConfigurationAsync(chargePointId, request, cancellationToken);
+        return _commandSender.ChangeConfigurationAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<ClearCacheResponse> ClearCacheAsync(
@@ -336,7 +258,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         ClearCacheRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.ClearCacheAsync(chargePointId, request, cancellationToken);
+        return _commandSender.ClearCacheAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<DataTransferResponse> DataTransferAsync(
@@ -344,7 +266,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         DataTransferRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.DataTransferAsync(chargePointId, request, cancellationToken);
+        return _commandSender.DataTransferAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<ChangeAvailabilityResponse> ChangeAvailabilityAsync(
@@ -352,7 +274,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         ChangeAvailabilityRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.ChangeAvailabilityAsync(chargePointId, request, cancellationToken);
+        return _commandSender.ChangeAvailabilityAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<GetDiagnosticsResponse> GetDiagnosticsAsync(
@@ -360,7 +282,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         GetDiagnosticsRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.GetDiagnosticsAsync(chargePointId, request, cancellationToken);
+        return _commandSender.GetDiagnosticsAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<UpdateFirmwareResponse> UpdateFirmwareAsync(
@@ -368,7 +290,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         UpdateFirmwareRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.UpdateFirmwareAsync(chargePointId, request, cancellationToken);
+        return _commandSender.UpdateFirmwareAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<GetLocalListVersionResponse> GetLocalListVersionAsync(
@@ -376,7 +298,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         GetLocalListVersionRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.GetLocalListVersionAsync(chargePointId, request, cancellationToken);
+        return _commandSender.GetLocalListVersionAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<SendLocalListResponse> SendLocalListAsync(
@@ -384,7 +306,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         SendLocalListRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.SendLocalListAsync(chargePointId, request, cancellationToken);
+        return _commandSender.SendLocalListAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<CancelReservationResponse> CancelReservationAsync(
@@ -392,7 +314,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         CancelReservationRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.CancelReservationAsync(chargePointId, request, cancellationToken);
+        return _commandSender.CancelReservationAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<ReserveNowResponse> ReserveNowAsync(
@@ -400,7 +322,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         ReserveNowRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.ReserveNowAsync(chargePointId, request, cancellationToken);
+        return _commandSender.ReserveNowAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<ClearChargingProfileResponse> ClearChargingProfileAsync(
@@ -408,7 +330,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         ClearChargingProfileRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.ClearChargingProfileAsync(chargePointId, request, cancellationToken);
+        return _commandSender.ClearChargingProfileAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<GetCompositeScheduleResponse> GetCompositeScheduleAsync(
@@ -416,7 +338,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         GetCompositeScheduleRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.GetCompositeScheduleAsync(chargePointId, request, cancellationToken);
+        return _commandSender.GetCompositeScheduleAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<SetChargingProfileResponse> SetChargingProfileAsync(
@@ -424,7 +346,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         SetChargingProfileRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.SetChargingProfileAsync(chargePointId, request, cancellationToken);
+        return _commandSender.SetChargingProfileAsync(chargePointId, request, cancellationToken);
     }
 
     public Task<TriggerMessageResponse> TriggerMessageAsync(
@@ -432,7 +354,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         TriggerMessageRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandHandler.TriggerMessageAsync(chargePointId, request, cancellationToken);
+        return _commandSender.TriggerMessageAsync(chargePointId, request, cancellationToken);
     }
 
 

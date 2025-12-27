@@ -67,7 +67,11 @@ public class MessageRouter : IMessageRouter
             {
                 case OcppRequest request:
                     // Call消息 - 充电桩发起的请求
-                    await _requestHandler.HandleRequestAsync(chargePointId, request);
+                    var handlerResponse = await _requestHandler.HandleRequestAsync(chargePointId, request);
+                    if (handlerResponse != null)
+                    {
+                        await RouteResponse(chargePointId, handlerResponse);
+                    }
                     break;
 
                 case OcppResponse response:

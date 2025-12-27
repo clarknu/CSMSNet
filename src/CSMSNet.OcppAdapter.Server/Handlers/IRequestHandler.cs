@@ -13,8 +13,8 @@ public interface IRequestHandler
     /// </summary>
     /// <param name="chargePointId">充电桩ID</param>
     /// <param name="request">请求对象</param>
-    /// <returns></returns>
-    Task HandleRequestAsync(string chargePointId, OcppRequest request);
+    /// <returns>响应消息</returns>
+    Task<IOcppMessage> HandleRequestAsync(string chargePointId, OcppRequest request);
 
     event EventHandler<BootNotificationEventArgs>? OnBootNotification;
     event EventHandler<HeartbeatEventArgs>? OnHeartbeat;

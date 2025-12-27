@@ -16,10 +16,9 @@ namespace CSMSNet.OcppAdapter.Server.Handlers;
 public class RequestHandler : IRequestHandler
 {
     private readonly IStateCache _stateCache;
-    private readonly IMessageRouter _messageRouter;
     private readonly OcppAdapterConfiguration _configuration;
     private readonly ILogger<RequestHandler>? _logger;
-    private readonly IConnectionManager? _connectionManager; // Added dependency
+    private readonly IConnectionManager? _connectionManager;
 
     public event EventHandler<BootNotificationEventArgs>? OnBootNotification;
     public event EventHandler<HeartbeatEventArgs>? OnHeartbeat;
@@ -34,19 +33,17 @@ public class RequestHandler : IRequestHandler
 
     public RequestHandler(
         IStateCache stateCache,
-        IMessageRouter messageRouter,
         OcppAdapterConfiguration configuration,
         ILogger<RequestHandler>? logger = null,
-        IConnectionManager? connectionManager = null) // Optional to avoid breaking tests/existing code immediately, but should be required
+        IConnectionManager? connectionManager = null)
     {
         _stateCache = stateCache ?? throw new ArgumentNullException(nameof(stateCache));
-        _messageRouter = messageRouter ?? throw new ArgumentNullException(nameof(messageRouter));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _logger = logger;
         _connectionManager = connectionManager;
     }
 
-    public async Task HandleRequestAsync(string chargePointId, OcppRequest request)
+    public async Task<IOcppMessage> HandleRequestAsync(string chargePointId, OcppRequest request)
     {
         _logger?.LogDebug(
             "Handling request {Action} from charge point {ChargePointId}, MessageId: {MessageId}",
@@ -56,6 +53,23 @@ public class RequestHandler : IRequestHandler
 
         try
         {
+            // 验证会话状态
+            if (_connectionManager != null)
+            {
+                var session = _connectionManager.GetSession(chargePointId);
+                // 如果会话存在但未验证，且请求不是BootNotification，则拒绝
+                if (session != null && !session.IsVerified && request is not BootNotificationRequest)
+                {
+                    _logger?.LogWarning("Rejected request {Action} from unverified charge point {ChargePointId}", request.Action, chargePointId);
+                    return new OcppError
+                    {
+                        MessageId = request.MessageId,
+                        ErrorCode = "SecurityError",
+                        ErrorDescription = "BootNotification required"
+                    };
+                }
+            }
+
             IOcppMessage response = request switch
             {
                 BootNotificationRequest bootReq => await HandleBootNotificationAsync(chargePointId, bootReq),
@@ -72,7 +86,7 @@ public class RequestHandler : IRequestHandler
             };
 
             response.MessageId = request.MessageId;
-            await _messageRouter.RouteResponse(chargePointId, response);
+            return response;
         }
         catch (Exception ex)
         {
@@ -81,13 +95,12 @@ public class RequestHandler : IRequestHandler
                 request.Action,
                 chargePointId);
 
-            var error = new OcppError
+            return new OcppError
             {
                 MessageId = request.MessageId,
                 ErrorCode = "InternalError",
                 ErrorDescription = "Error processing request"
             };
-            await _messageRouter.RouteResponse(chargePointId, error);
         }
     }
 
@@ -126,36 +139,36 @@ public class RequestHandler : IRequestHandler
             var response = await WaitForResponseAsync(args.ResponseTask, GetDefaultBootNotificationResponse());
             
             // 更新注册状态
-                if (response.Status != RegistrationStatus.Accepted)
-                {
-                    info.Status = response.Status;
-                    _stateCache.UpdateChargePointInfo(info);
+            if (response.Status != RegistrationStatus.Accepted)
+            {
+                info.Status = response.Status;
+                _stateCache.UpdateChargePointInfo(info);
 
-                    // 如果被拒绝，断开连接
-                    if (_connectionManager != null)
+                // 如果被拒绝，断开连接
+                if (_connectionManager != null)
+                {
+                    var session = _connectionManager.GetSession(chargePointId);
+                    if (session != null)
                     {
-                        var session = _connectionManager.GetSession(chargePointId);
-                        if (session != null)
+                        _logger?.LogWarning("BootNotification rejected for {ChargePointId}. Closing connection.", chargePointId);
+                        // 异步断开连接，给予少量时间发送响应
+                        _ = Task.Run(async () =>
                         {
-                            _logger?.LogWarning("BootNotification rejected for {ChargePointId}. Closing connection.", chargePointId);
-                            // 异步断开连接，给予少量时间发送响应
-                            _ = Task.Run(async () =>
+                            try
                             {
-                                try
-                                {
-                                    await Task.Delay(500); // 等待响应发送完成
-                                    await session.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.PolicyViolation, "BootNotification Rejected");
-                                }
-                                catch (Exception ex)
-                                {
-                                    _logger?.LogError(ex, "Error closing rejected session for {ChargePointId}", chargePointId);
-                                }
-                            });
-                        }
+                                await Task.Delay(500); // 等待响应发送完成
+                                await session.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.PolicyViolation, "BootNotification Rejected");
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.LogError(ex, "Error closing rejected session for {ChargePointId}", chargePointId);
+                            }
+                        });
                     }
                 }
-                else
-                {
+            }
+            else
+            {
                 // 如果接受，标记会话为已验证
                 if (_connectionManager != null)
                 {
@@ -187,7 +200,7 @@ public class RequestHandler : IRequestHandler
         };
     }
 
-    private async Task<HeartbeatResponse> HandleHeartbeatAsync(
+    private Task<HeartbeatResponse> HandleHeartbeatAsync(
         string chargePointId,
         HeartbeatRequest request)
     {
@@ -199,16 +212,14 @@ public class RequestHandler : IRequestHandler
             Request = request
         };
 
-        if (OnHeartbeat != null)
-        {
-            OnHeartbeat.Invoke(this, args);
-            return await WaitForResponseAsync(args.ResponseTask, new HeartbeatResponse { CurrentTime = DateTime.UtcNow });
-        }
+        // 触发事件通知（不等待结果）
+        OnHeartbeat?.Invoke(this, args);
 
-        return new HeartbeatResponse
+        // 立即返回
+        return Task.FromResult(new HeartbeatResponse
         {
             CurrentTime = DateTime.UtcNow
-        };
+        });
     }
 
     private async Task<StatusNotificationResponse> HandleStatusNotificationAsync(

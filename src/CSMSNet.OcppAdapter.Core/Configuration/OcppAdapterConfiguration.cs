@@ -18,6 +18,11 @@ public class OcppAdapterConfiguration
     public TimeSpan BootNotificationTimeout { get; set; } = TimeSpan.FromSeconds(60);
 
     /// <summary>
+    /// 未验证会话超时时间（等待BootNotification通过的最长时间）
+    /// </summary>
+    public TimeSpan UnverifiedSessionTimeout { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
     /// 业务事件处理超时
     /// </summary>
     public TimeSpan BusinessEventTimeout { get; set; } = TimeSpan.FromSeconds(30);

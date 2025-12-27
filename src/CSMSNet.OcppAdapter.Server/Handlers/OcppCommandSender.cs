@@ -10,22 +10,22 @@ using Microsoft.Extensions.Logging;
 namespace CSMSNet.OcppAdapter.Server.Handlers;
 
 /// <summary>
-/// 指令处理器
+/// OCPP指令发送器
 /// </summary>
-public class CommandHandler
+public class OcppCommandSender
 {
     private readonly IOcppProtocolHandler _protocolHandler;
     private readonly ICallMatcher _callMatcher;
     private readonly IConnectionManager _connectionManager;
     private readonly OcppAdapterConfiguration _configuration;
-    private readonly ILogger<CommandHandler>? _logger;
+    private readonly ILogger<OcppCommandSender>? _logger;
 
-    public CommandHandler(
+    public OcppCommandSender(
         IOcppProtocolHandler protocolHandler,
         ICallMatcher callMatcher,
         IConnectionManager connectionManager,
         OcppAdapterConfiguration configuration,
-        ILogger<CommandHandler>? logger = null)
+        ILogger<OcppCommandSender>? logger = null)
     {
         _protocolHandler = protocolHandler ?? throw new ArgumentNullException(nameof(protocolHandler));
         _callMatcher = callMatcher ?? throw new ArgumentNullException(nameof(callMatcher));

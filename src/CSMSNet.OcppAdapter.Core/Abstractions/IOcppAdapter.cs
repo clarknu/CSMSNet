@@ -81,6 +81,16 @@ public interface IOcppAdapter
     event EventHandler<ChargePointDisconnectedEventArgs>? OnChargePointDisconnected;
 
     /// <summary>
+    /// 会话创建事件
+    /// </summary>
+    event EventHandler<ChargePointConnectedEventArgs>? OnSessionCreated;
+
+    /// <summary>
+    /// 会话关闭（销毁）事件
+    /// </summary>
+    event EventHandler<ChargePointDisconnectedEventArgs>? OnSessionClosed;
+
+    /// <summary>
     /// BootNotification事件
     /// </summary>
     event EventHandler<BootNotificationEventArgs>? OnBootNotification;

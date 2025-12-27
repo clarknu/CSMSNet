@@ -9,29 +9,29 @@ using Microsoft.Extensions.Logging;
 namespace CSMSNet.OcppAdapter.Server.Transport;
 
 /// <summary>
-/// WebSocket服务器
-/// 注意: 需要ASP.NET Core环境才能使用此类
+/// WebSocket连接处理器
+/// 负责处理WebSocket升级、握手、消息接收和发送
 /// </summary>
-public class WebSocketServer
+public class OcppWebSocketHandler
 {
     private readonly OcppAdapterConfiguration _configuration;
     private readonly IConnectionManager _connectionManager;
     private readonly IMessageRouter _messageRouter;
-    private readonly ILogger<WebSocketServer>? _logger;
-    private readonly IOcppAdapter? _ocppAdapter; // 需要访问StateCache, 但最好通过接口或服务
+    private readonly ILogger<OcppWebSocketHandler>? _logger;
+    private readonly OcppAdapter _adapter;
 
-    public WebSocketServer(
+    public OcppWebSocketHandler(
         OcppAdapterConfiguration configuration,
         IConnectionManager connectionManager,
         IMessageRouter messageRouter,
-        ILogger<WebSocketServer>? logger = null,
-        IOcppAdapter? ocppAdapter = null)
+        ILogger<OcppWebSocketHandler>? logger,
+        OcppAdapter adapter)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
         _messageRouter = messageRouter ?? throw new ArgumentNullException(nameof(messageRouter));
         _logger = logger;
-        _ocppAdapter = ocppAdapter;
+        _adapter = adapter;
     }
 
     /// <summary>
@@ -81,9 +81,9 @@ public class WebSocketServer
 
             // 检查是否已有 Accepted 状态
             bool isVerified = false;
-            if (_ocppAdapter != null)
+            if (_adapter != null)
             {
-                var info = _ocppAdapter.GetChargePointInfo(chargePointId);
+                var info = _adapter.GetChargePointInfo(chargePointId);
                 if (info?.Status == RegistrationStatus.Accepted)
                 {
                     isVerified = true;
@@ -97,6 +97,7 @@ public class WebSocketServer
                 chargePointId,
                 subProtocol,
                 _messageRouter,
+                _configuration.UnverifiedSessionTimeout,
                 null, // Logger
                 isVerified);
 

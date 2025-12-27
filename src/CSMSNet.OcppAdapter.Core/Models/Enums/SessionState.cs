@@ -21,7 +21,12 @@ public enum SessionState
     Closing,
 
     /// <summary>
-    /// 已关闭
+    /// 已关闭(彻底销毁)
     /// </summary>
-    Closed
+    Closed,
+
+    /// <summary>
+    /// 异常断开(等待重连)
+    /// </summary>
+    Disconnected
 }

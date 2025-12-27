@@ -11,15 +11,15 @@ namespace CSMSNet.OcppAdapter.Server.Transport;
 /// </summary>
 public class WebSocketSession
 {
-    private readonly WebSocket _webSocket;
+    private WebSocket _webSocket;
     private readonly IMessageRouter _messageRouter;
     private readonly ILogger<WebSocketSession>? _logger;
-    private readonly CancellationTokenSource _cancellationTokenSource = new();
+    private CancellationTokenSource _cancellationTokenSource = new();
 
     /// <summary>
     /// 会话ID
     /// </summary>
-    public string SessionId { get; }
+    public string SessionId { get; private set; }
 
     /// <summary>
     /// 充电桩ID
@@ -44,12 +44,22 @@ public class WebSocketSession
     /// <summary>
     /// 连接建立时间
     /// </summary>
-    public DateTime ConnectedAt { get; }
+    public DateTime ConnectedAt { get; private set; }
 
     /// <summary>
     /// 最后活动时间
     /// </summary>
     public DateTime LastActivityAt { get; private set; }
+
+    /// <summary>
+    /// 最后断开连接时间
+    /// </summary>
+    public DateTime? LastDisconnectedAt { get; private set; }
+
+    /// <summary>
+    /// 是否处于连接状态
+    /// </summary>
+    public bool IsConnected => _webSocket.State == WebSocketState.Open;
 
     /// <summary>
     /// 已发送消息数
@@ -74,7 +84,7 @@ public class WebSocketSession
     /// <summary>
     /// 验证超时时间(秒)
     /// </summary>
-    private const int VerificationTimeoutSeconds = 60;
+    private readonly TimeSpan _verificationTimeout;
 
     public event EventHandler<string>? Disconnected;
 
@@ -83,12 +93,14 @@ public class WebSocketSession
         string chargePointId,
         string protocolVersion,
         IMessageRouter messageRouter,
+        TimeSpan verificationTimeout,
         ILogger<WebSocketSession>? logger = null,
         bool isVerified = false)
     {
         _webSocket = webSocket ?? throw new ArgumentNullException(nameof(webSocket));
         _messageRouter = messageRouter ?? throw new ArgumentNullException(nameof(messageRouter));
         _logger = logger;
+        _verificationTimeout = verificationTimeout;
 
         SessionId = Guid.NewGuid().ToString();
         ChargePointId = chargePointId ?? throw new ArgumentNullException(nameof(chargePointId));
@@ -101,8 +113,8 @@ public class WebSocketSession
         // 如果未验证，启动超时定时器
         if (!IsVerified)
         {
-            _verificationTimer = new Timer(VerificationTimeoutCallback, null, TimeSpan.FromSeconds(VerificationTimeoutSeconds), Timeout.InfiniteTimeSpan);
-            _logger?.LogInformation("Started verification timer for {ChargePointId}, timeout: {Timeout}s", ChargePointId, VerificationTimeoutSeconds);
+            _verificationTimer = new Timer(VerificationTimeoutCallback, null, _verificationTimeout, Timeout.InfiniteTimeSpan);
+            _logger?.LogInformation("Started verification timer for {ChargePointId}, timeout: {Timeout}s", ChargePointId, _verificationTimeout.TotalSeconds);
         }
     }
 
@@ -124,6 +136,53 @@ public class WebSocketSession
         _verificationTimer?.Dispose();
         _verificationTimer = null;
         _logger?.LogInformation("Session verified for {ChargePointId}", ChargePointId);
+    }
+
+    /// <summary>
+    /// 恢复会话状态
+    /// </summary>
+    public void RestoreState(string sessionId, bool isVerified, DateTime connectedAt)
+    {
+        SessionId = sessionId;
+        IsVerified = isVerified;
+        ConnectedAt = connectedAt;
+        
+        // 如果已验证，取消验证超时定时器
+        if (IsVerified)
+        {
+            _verificationTimer?.Dispose();
+            _verificationTimer = null;
+        }
+    }
+
+    /// <summary>
+    /// 替换WebSocket连接（用于重连）
+    /// </summary>
+    public void ReplaceSocket(WebSocket newSocket)
+    {
+        if (newSocket == null) throw new ArgumentNullException(nameof(newSocket));
+
+        _logger?.LogInformation("Replacing WebSocket for session {SessionId}, ChargePoint {ChargePointId}", SessionId, ChargePointId);
+
+        // 清理旧连接资源
+        try
+        {
+            if (_webSocket != null)
+            {
+                _cancellationTokenSource.Cancel();
+                _webSocket.Dispose();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Error disposing old WebSocket during replacement");
+        }
+
+        _webSocket = newSocket;
+        _cancellationTokenSource = new CancellationTokenSource();
+        State = SessionState.Connected;
+        LastDisconnectedAt = null; // 重置断开时间
+        UpdateActivity();
     }
 
     /// <summary>
@@ -275,7 +334,7 @@ public class WebSocketSession
         WebSocketCloseStatus closeStatus = WebSocketCloseStatus.NormalClosure,
         string? statusDescription = null)
     {
-        if (State == SessionState.Closing || State == SessionState.Closed)
+        if (State == SessionState.Closed)
             return;
 
         State = SessionState.Closing;
@@ -331,10 +390,18 @@ public class WebSocketSession
 
     private async Task HandleDisconnectAsync(string reason)
     {
-        State = SessionState.Closed;
+        // 如果是已经处于Closed状态（即通过CloseAsync显式关闭），则保持Closed
+        if (State == SessionState.Closed)
+        {
+            return;
+        }
+
+        // 否则标记为Disconnected（异常断开，等待重连）
+        State = SessionState.Disconnected;
+        LastDisconnectedAt = DateTime.UtcNow;
 
         _logger?.LogInformation(
-            "Charge point {ChargePointId} disconnected, reason: {Reason}",
+            "Charge point {ChargePointId} disconnected (waiting for reconnect), reason: {Reason}",
             ChargePointId,
             reason);
 

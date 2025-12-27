@@ -64,4 +64,6 @@ public interface IConnectionManager
 
     event EventHandler<ChargePointConnectedEventArgs>? OnChargePointConnected;
     event EventHandler<ChargePointDisconnectedEventArgs>? OnChargePointDisconnected;
+    event EventHandler<ChargePointConnectedEventArgs>? OnSessionCreated;
+    event EventHandler<ChargePointDisconnectedEventArgs>? OnSessionClosed;
 }
