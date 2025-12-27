@@ -22,9 +22,6 @@ artifacts/
 # VS Code
 .vscode/
 
-# Qoder IDE
-.qoder/
-
 # NuGet
 *.nupkg
 *.snupkg

@@ -16,22 +16,21 @@ CSMSNet.Ocpp 是一个基于 .NET 10 开发的高性能 OCPP (Open Charge Point 
 - **Models/**: 包含所有 OCPP 数据模型。
   - **V16/**: OCPP 1.6 版本的特定模型（Requests, Responses, Enums, Common Types）。
   - **Events/**: 定义各类事件参数（如 `BootNotificationEventArgs`, `StartTransactionEventArgs`）。
-  - **State/**: 定义内部状态模型（如 `ChargePointState`, `Transaction`）。
+  - **State/**: 定义内部状态模型（如 `ChargePointState`）。
 - **Configuration/**: 定义配置类 `OcppAdapterConfiguration`。
 - **Exceptions/**: 定义自定义异常 `OcppException`。
 - **Transport/**: WebSocket 通信层，包含 `ConnectionManager` 和 `OcppWebSocketMiddleware`。
-- **Handlers/**: 消息处理逻辑。
+- **Handlers/**: 消息处理逻辑，包含 `RequestHandler` 和 `MessageRouter`。
 
 ### 2.2. CSMSNet.Web
-**用途**: 基于 ASP.NET Core 的 Web 主机项目，集成了 Blazor Server 和 WebAssembly。
-- **Program.cs**: 应用入口，负责服务注册和中间件配置。
-- **Components/**: Blazor 页面和组件。
+**用途**: 基于 ASP.NET Core 的 Web 主机项目，集成了 Blazor Server 和 WebAssembly (Interactive Auto 模式)。
+- **CSMSNet.Web/**: 服务端主项目，负责服务注册、中间件配置以及服务器端渲染。
+  - **Program.cs**: 应用入口。
+  - **Components/**: Blazor 页面和组件。
+- **CSMSNet.Web.Client/**: 客户端项目 (WASM)，负责在浏览器端运行的交互逻辑。
 - 该项目作为 OCPP 服务器的宿主，同时也提供 Web 管理界面。
 
-### 2.3. CSMSNet.Web.Client
-**用途**: Blazor WebAssembly 客户端项目，用于前端交互。
-
-### 2.4. CSMSNet.Ocpp.Tests
+### 2.3. CSMSNet.Ocpp.Tests
 **用途**: 单元测试项目，确保核心功能的正确性。
 
 ## 3. 关联依赖关系
@@ -40,7 +39,8 @@ CSMSNet.Ocpp 是一个基于 .NET 10 开发的高性能 OCPP (Open Charge Point 
 
 ```mermaid
 graph TD
-    Web[CSMSNet.Web] --> Ocpp[CSMSNet.Ocpp]
+    Web[CSMSNet.Web] --> Client[CSMSNet.Web.Client]
+    Web --> Ocpp[CSMSNet.Ocpp]
     Tests[CSMSNet.Ocpp.Tests] --> Ocpp
     Ocpp --> AspNetCore[ASP.NET Core Shared Framework]
 ```
@@ -117,6 +117,10 @@ app.Run();
 适配器通过 C# 事件机制暴露充电桩的各种行为，您可以订阅这些事件来处理业务逻辑。通常建议创建一个 `HostedService` 来订阅这些事件。
 
 ```csharp
+using CSMSNet.OcppAdapter.Abstractions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
 public class OcppEventHandler : IHostedService
 {
     private readonly IOcppAdapter _adapter;
@@ -188,6 +192,7 @@ if (adapter.IsChargePointOnline(cpId))
 #### 远程启动充电 (RemoteStartTransaction)
 ```csharp
 using CSMSNet.OcppAdapter.Models.V16.Requests;
+using CSMSNet.OcppAdapter.Models.V16.Enums; // 用于 RemoteStartStopStatus
 
 try 
 {
