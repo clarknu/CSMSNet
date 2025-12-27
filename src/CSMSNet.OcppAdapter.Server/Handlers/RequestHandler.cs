@@ -126,13 +126,36 @@ public class RequestHandler : IRequestHandler
             var response = await WaitForResponseAsync(args.ResponseTask, GetDefaultBootNotificationResponse());
             
             // 更新注册状态
-            if (response.Status != RegistrationStatus.Accepted)
-            {
-                info.Status = response.Status;
-                _stateCache.UpdateChargePointInfo(info);
-            }
-            else
-            {
+                if (response.Status != RegistrationStatus.Accepted)
+                {
+                    info.Status = response.Status;
+                    _stateCache.UpdateChargePointInfo(info);
+
+                    // 如果被拒绝，断开连接
+                    if (_connectionManager != null)
+                    {
+                        var session = _connectionManager.GetSession(chargePointId);
+                        if (session != null)
+                        {
+                            _logger?.LogWarning("BootNotification rejected for {ChargePointId}. Closing connection.", chargePointId);
+                            // 异步断开连接，给予少量时间发送响应
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    await Task.Delay(500); // 等待响应发送完成
+                                    await session.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.PolicyViolation, "BootNotification Rejected");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger?.LogError(ex, "Error closing rejected session for {ChargePointId}", chargePointId);
+                                }
+                            });
+                        }
+                    }
+                }
+                else
+                {
                 // 如果接受，标记会话为已验证
                 if (_connectionManager != null)
                 {

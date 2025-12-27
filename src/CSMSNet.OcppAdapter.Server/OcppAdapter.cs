@@ -10,14 +10,16 @@ using CSMSNet.OcppAdapter.Server.Handlers;
 using CSMSNet.OcppAdapter.Server.State;
 using CSMSNet.OcppAdapter.Server.Transport;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace CSMSNet.OcppAdapter.Server;
 
 /// <summary>
 /// OCPP适配器主类
+/// 实现IOcppAdapter业务接口和IHostedService生命周期接口
 /// </summary>
-public class OcppAdapter : IOcppAdapter
+public class OcppAdapter : IOcppAdapter, IHostedService
 {
     private readonly OcppAdapterConfiguration _configuration;
     private readonly IStateCache _stateCache;
@@ -163,9 +165,14 @@ public class OcppAdapter : IOcppAdapter
         _connectionManager.OnChargePointDisconnected += (s, e) => OnChargePointDisconnected?.Invoke(this, e);
     }
 
-    public Task StartAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// 启动后台服务 (IHostedService实现)
+    /// 注意: 此方法由Host自动调用，用于启动后台清理任务等。
+    /// WebSocket服务由ASP.NET Core Middleware (OcppWebSocketMiddleware) 处理，不在此处启动。
+    /// </summary>
+    public Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger?.LogInformation("OCPP Adapter starting on {ListenUrl}", _configuration.ListenUrl);
+        _logger?.LogInformation("OCPP Adapter background service starting...");
         
         // 启动后台监控任务
         _ = Task.Run(async () =>
@@ -174,7 +181,7 @@ public class OcppAdapter : IOcppAdapter
             {
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(60), cancellationToken);
+                    await Task.Delay(_configuration.SessionCleanupInterval, cancellationToken);
                     await _connectionManager.CleanupInactiveSessions();
                 }
                 catch (OperationCanceledException) { break; }
@@ -201,9 +208,9 @@ public class OcppAdapter : IOcppAdapter
         return _webSocketServer.HandleWebSocketAsync(context);
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken = default)
+    public async Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger?.LogInformation("OCPP Adapter stopping");
+        _logger?.LogInformation("OCPP Adapter background service stopping");
         
         // 关闭所有连接
         await _connectionManager.CloseAllSessions();

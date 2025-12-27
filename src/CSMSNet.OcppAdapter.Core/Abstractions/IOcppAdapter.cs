@@ -11,20 +11,6 @@ namespace CSMSNet.OcppAdapter.Abstractions;
 public interface IOcppAdapter
 {
     /// <summary>
-    /// 启动适配器
-    /// </summary>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
-    Task StartAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// 停止适配器
-    /// </summary>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
-    Task StopAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// 获取充电桩基础信息
     /// </summary>
     /// <param name="chargePointId">充电桩ID</param>

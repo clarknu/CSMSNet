@@ -181,7 +181,7 @@ public class WebSocketServer
         var requestedProtocols = context.WebSockets.WebSocketRequestedProtocols;
         
         // 支持的OCPP协议列表(优先级从高到低)
-        var supportedProtocols = new[] { "ocpp1.6", "ocpp1.5" };
+        var supportedProtocols = _configuration.SupportedProtocols;
 
         // 查找第一个匹配的协议
         foreach (var supported in supportedProtocols)
@@ -192,10 +192,10 @@ public class WebSocketServer
             }
         }
 
-        // 如果没有请求子协议,默认使用ocpp1.6
+        // 如果没有请求子协议,默认使用配置的默认协议
         if (requestedProtocols.Count == 0)
         {
-            return "ocpp1.6";
+            return _configuration.DefaultProtocol;
         }
 
         return string.Empty;

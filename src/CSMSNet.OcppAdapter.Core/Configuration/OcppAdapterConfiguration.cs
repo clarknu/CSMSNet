@@ -98,7 +98,22 @@ public class OcppAdapterConfiguration
     public TimeSpan HeartbeatCheckInterval { get; set; } = TimeSpan.FromSeconds(60);
 
     /// <summary>
+    /// 会话清理间隔
+    /// </summary>
+    public TimeSpan SessionCleanupInterval { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
     /// CallMatcher清理过期Call间隔
     /// </summary>
     public TimeSpan CallMatcherCleanupInterval { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// 支持的OCPP协议版本
+    /// </summary>
+    public string[] SupportedProtocols { get; set; } = new[] { "ocpp1.6", "ocpp1.5" };
+
+    /// <summary>
+    /// 默认OCPP协议版本
+    /// </summary>
+    public string DefaultProtocol { get; set; } = "ocpp1.6";
 }
