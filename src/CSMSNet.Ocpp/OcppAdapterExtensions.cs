@@ -1,6 +1,7 @@
 using CSMSNet.OcppAdapter.Abstractions;
 using CSMSNet.OcppAdapter.Configuration;
 using CSMSNet.Ocpp.Transport;
+using CSMSNet.Ocpp.Services; // Added namespace
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,16 +30,7 @@ public static class OcppAdapterExtensions
         
         return services.AddOcppAdapter(config =>
         {
-            // 手动复制属性，或者我们可以修改AddOcppAdapter以接受现有的实例
-            // 但为了保持简单，我们这里使用反射来复制属性，或者因为AddOcppAdapter只是为了配置一个新实例
-            // 我们可以直接注册实例，跳过AddOcppAdapter的内部逻辑吗？
-            // 不，AddOcppAdapter做了很多注册工作。
-            
-            // 更好的方式：重构 AddOcppAdapter 内部逻辑
-            // 但既然我不能轻易修改所有引用，我将在这里复制属性
-            // 实际上，OcppAdapterConfiguration 只有属性，可以使用 MemberwiseClone 或者逐个赋值
-            // 但为了稳健，我们使用 System.Text.Json 或反射
-            
+            // 手动复制属性
             foreach (var prop in typeof(OcppAdapterConfiguration).GetProperties())
             {
                 if (prop.CanWrite && prop.CanRead)
@@ -67,6 +59,9 @@ public static class OcppAdapterExtensions
         services.AddSingleton<OcppAdapter>();
         services.AddSingleton<IOcppAdapter>(sp => sp.GetRequiredService<OcppAdapter>());
         services.AddHostedService(sp => sp.GetRequiredService<OcppAdapter>());
+        
+        // 注册自动询问服务
+        services.AddHostedService<ChargePointInterrogator>();
         
         return services;
     }

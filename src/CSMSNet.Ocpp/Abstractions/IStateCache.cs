@@ -1,4 +1,5 @@
 using CSMSNet.OcppAdapter.Models.State;
+using CSMSNet.OcppAdapter.Models.V16.Enums; // Added Enums namespace
 
 namespace CSMSNet.OcppAdapter.Abstractions;
 
@@ -19,7 +20,7 @@ public interface IStateCache
     /// </summary>
     /// <param name="chargePointId">充电桩ID</param>
     /// <returns>充电桩状态（可空）</returns>
-    ChargePointStatus? GetChargePointStatus(string chargePointId);
+    CSMSNet.OcppAdapter.Models.State.ChargePointStatus? GetChargePointStatus(string chargePointId);
 
     /// <summary>
     /// 获取连接器状态
@@ -79,6 +80,34 @@ public interface IStateCache
     void UpdateConnectorStatus(string chargePointId, ConnectorStatus status);
 
     /// <summary>
+    /// 更新电池状态
+    /// </summary>
+    /// <param name="chargePointId">充电桩ID</param>
+    /// <param name="connectorId">连接器ID</param>
+    /// <param name="batteryStatus">电池状态</param>
+    void UpdateBatteryStatus(string chargePointId, int connectorId, BatteryStatus batteryStatus);
+
+    /// <summary>
+    /// 更新连接器实时快照
+    /// </summary>
+    void UpdateConnectorSnapshot(string chargePointId, int connectorId, decimal? voltage, decimal? current, decimal? power);
+
+    /// <summary>
+    /// 更新固件状态
+    /// </summary>
+    void UpdateFirmwareStatus(string chargePointId, FirmwareStatus status);
+
+    /// <summary>
+    /// 更新诊断状态
+    /// </summary>
+    void UpdateDiagnosticsStatus(string chargePointId, DiagnosticsStatus status);
+
+    /// <summary>
+    /// 更新本地鉴权列表版本
+    /// </summary>
+    void UpdateLocalAuthListVersion(string chargePointId, int version);
+
+    /// <summary>
     /// 标记充电桩在线
     /// </summary>
     /// <param name="chargePointId">充电桩ID</param>
@@ -108,7 +137,13 @@ public interface IStateCache
     /// <param name="chargePointId">充电桩ID</param>
     /// <param name="connectorId">连接器ID</param>
     /// <param name="meterValue">电量值</param>
-    void UpdateTransactionMeter(string chargePointId, int connectorId, int meterValue);
+    /// <param name="context">读数上下文</param>
+    void UpdateTransactionMeter(string chargePointId, int connectorId, int meterValue, ReadingContext context = ReadingContext.SamplePeriodic);
+
+    /// <summary>
+    /// 更新事务快照
+    /// </summary>
+    void UpdateTransactionSnapshot(string chargePointId, int connectorId, decimal? power);
 
     /// <summary>
     /// 结束事务

@@ -5,8 +5,9 @@ using CSMSNet.OcppAdapter.Models.Events;
 using CSMSNet.OcppAdapter.Models.V16.Enums;
 using CSMSNet.OcppAdapter.Models.V16.Requests;
 using CSMSNet.OcppAdapter.Models.V16.Responses;
-using CSMSNet.Ocpp.Transport; // Added for IConnectionManager
+using CSMSNet.Ocpp.Transport;
 using Microsoft.Extensions.Logging;
+using CSMSNet.OcppAdapter.Models.State; // For BatteryStatus
 
 namespace CSMSNet.Ocpp.Handlers;
 
@@ -232,7 +233,10 @@ public class RequestHandler : IRequestHandler
             ConnectorId = request.ConnectorId,
             Status = request.Status.ToString(),
             ErrorCode = request.ErrorCode.ToString(),
-            Timestamp = request.Timestamp ?? DateTime.UtcNow
+            Timestamp = request.Timestamp ?? DateTime.UtcNow,
+            Info = request.Info,
+            VendorId = request.VendorId,
+            VendorErrorCode = request.VendorErrorCode
         };
         _stateCache.UpdateConnectorStatus(chargePointId, status);
 
@@ -314,10 +318,11 @@ public class RequestHandler : IRequestHandler
                 {
                     ChargePointId = chargePointId,
                     TransactionId = response.TransactionId,
-                    ConnectorId = request.ConnectorId,
+                    ConnectorIds = new List<int> { request.ConnectorId },
                     IdTag = request.IdTag,
-                    MeterStart = request.MeterStart,
-                    StartTime = request.Timestamp
+                    MeterStartValues = new Dictionary<int, int> { { request.ConnectorId, request.MeterStart } },
+                    StartTime = request.Timestamp,
+                    LastUpdated = DateTime.UtcNow
                 };
                 _stateCache.CreateTransaction(transaction);
                 
@@ -336,10 +341,11 @@ public class RequestHandler : IRequestHandler
         {
             ChargePointId = chargePointId,
             TransactionId = transactionId,
-            ConnectorId = request.ConnectorId,
+            ConnectorIds = new List<int> { request.ConnectorId },
             IdTag = request.IdTag,
-            MeterStart = request.MeterStart,
-            StartTime = request.Timestamp
+            MeterStartValues = new Dictionary<int, int> { { request.ConnectorId, request.MeterStart } },
+            StartTime = request.Timestamp,
+            LastUpdated = DateTime.UtcNow
         };
         _stateCache.CreateTransaction(defaultTransaction);
 
@@ -400,6 +406,117 @@ public class RequestHandler : IRequestHandler
     {
         _stateCache.UpdateLastCommunication(chargePointId);
 
+        // 解析电表值并更新缓存
+        try
+        {
+            BatteryStatus? batteryStatus = null;
+            decimal? instantVoltage = null;
+            decimal? instantCurrent = null;
+            decimal? instantPower = null;
+            int? energyActiveImportRegister = null;
+
+            foreach (var meterValue in request.MeterValue)
+            {
+                foreach (var sampledValue in meterValue.SampledValue)
+                {
+                    if (decimal.TryParse(sampledValue.Value, out var val))
+                    {
+                        var measurand = sampledValue.Measurand ?? Measurand.EnergyActiveImportRegister;
+                        var location = sampledValue.Location ?? Location.Outlet;
+                        var context = sampledValue.Context ?? ReadingContext.SamplePeriodic;
+
+                        switch (measurand)
+                        {
+                            case Measurand.SoC:
+                                if (batteryStatus == null) batteryStatus = new BatteryStatus();
+                                batteryStatus.SoC = val;
+                                break;
+                            case Measurand.Voltage:
+                                if (location == Location.EV)
+                                {
+                                    if (batteryStatus == null) batteryStatus = new BatteryStatus();
+                                    batteryStatus.Voltage = val;
+                                }
+                                else
+                                {
+                                    instantVoltage = val;
+                                }
+                                break;
+                            case Measurand.CurrentImport:
+                            case Measurand.CurrentOffered:
+                                if (location == Location.EV)
+                                {
+                                    if (batteryStatus == null) batteryStatus = new BatteryStatus();
+                                    batteryStatus.Current = val;
+                                }
+                                else
+                                {
+                                    instantCurrent = val;
+                                }
+                                break;
+                            case Measurand.PowerActiveImport:
+                                if (location == Location.EV)
+                                {
+                                    if (batteryStatus == null) batteryStatus = new BatteryStatus();
+                                    batteryStatus.Power = val;
+                                }
+                                else
+                                {
+                                    instantPower = val;
+                                }
+                                break;
+                            case Measurand.Temperature:
+                                if (batteryStatus == null) batteryStatus = new BatteryStatus();
+                                batteryStatus.Temperature = val;
+                                break;
+                            case Measurand.EnergyActiveImportRegister:
+                                energyActiveImportRegister = (int)val;
+                                
+                                // 如果是电表读数，我们需要传递上下文给状态缓存
+                                if (request.TransactionId.HasValue)
+                                {
+                                    _stateCache.UpdateTransactionMeter(
+                                        chargePointId, 
+                                        request.ConnectorId, 
+                                        energyActiveImportRegister.Value,
+                                        context);
+                                }
+                                break;
+                        }
+                    }
+                }
+            }
+
+            // 更新电池状态
+            if (batteryStatus != null)
+            {
+                _stateCache.UpdateBatteryStatus(chargePointId, request.ConnectorId, batteryStatus);
+            }
+
+            // 更新连接器快照
+            _stateCache.UpdateConnectorSnapshot(chargePointId, request.ConnectorId, instantVoltage, instantCurrent, instantPower);
+
+            // 更新事务快照 (只更新功率)
+            if (request.TransactionId.HasValue)
+            {
+                _stateCache.UpdateTransactionSnapshot(
+                    chargePointId, 
+                    request.ConnectorId, 
+                    instantPower); // Removed SoC, Voltage, Current
+
+                // UpdateTransactionMeter 已经在循环内部调用了，这里不需要再次调用
+                // 但为了兼容旧逻辑或者防止循环内没有触发更新（比如没有TransactionId但有meter value? 不可能，有check）
+                // 上面的循环是针对每个SampledValue处理的。如果一个 MeterValue 里有多个 SampledValue，
+                // 其中包含 EnergyActiveImportRegister，那么上面的逻辑会多次调用 UpdateTransactionMeter。
+                // 这是正确的，因为我们需要捕捉每一次读数及其上下文。
+                // 所以这里移除原来在这里的 UpdateTransactionMeter 调用。
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error parsing MeterValues from {ChargePointId}", chargePointId);
+        }
+
         var args = new MeterValuesEventArgs
         {
             ChargePointId = chargePointId,
@@ -441,6 +558,9 @@ public class RequestHandler : IRequestHandler
         string chargePointId,
         DiagnosticsStatusNotificationRequest request)
     {
+        // 更新诊断状态
+        _stateCache.UpdateDiagnosticsStatus(chargePointId, request.Status); // Pass Enum directly
+
         var args = new DiagnosticsStatusNotificationEventArgs
         {
             ChargePointId = chargePointId,
@@ -460,6 +580,9 @@ public class RequestHandler : IRequestHandler
         string chargePointId,
         FirmwareStatusNotificationRequest request)
     {
+        // 更新固件状态
+        _stateCache.UpdateFirmwareStatus(chargePointId, request.Status); // Pass Enum directly
+
         var args = new FirmwareStatusNotificationEventArgs
         {
             ChargePointId = chargePointId,

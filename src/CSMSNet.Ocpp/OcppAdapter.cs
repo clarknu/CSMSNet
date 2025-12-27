@@ -3,6 +3,7 @@ using CSMSNet.OcppAdapter.Configuration;
 using CSMSNet.OcppAdapter.Models;
 using CSMSNet.OcppAdapter.Models.Events;
 using CSMSNet.OcppAdapter.Models.State;
+using CSMSNet.OcppAdapter.Models.V16.Enums; // Ensure enums are available
 using CSMSNet.OcppAdapter.Models.V16.Requests;
 using CSMSNet.OcppAdapter.Models.V16.Responses;
 using CSMSNet.Ocpp.V16;
@@ -149,7 +150,7 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         return _stateCache.GetChargePointInfo(chargePointId);
     }
 
-    public ChargePointStatus? GetChargePointStatus(string chargePointId)
+    public CSMSNet.OcppAdapter.Models.State.ChargePointStatus? GetChargePointStatus(string chargePointId)
     {
         return _stateCache.GetChargePointStatus(chargePointId);
     }
@@ -237,20 +238,49 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         return _commandSender.UnlockConnectorAsync(chargePointId, request, cancellationToken);
     }
 
-    public Task<GetConfigurationResponse> GetConfigurationAsync(
+    public async Task<GetConfigurationResponse> GetConfigurationAsync(
         string chargePointId,
         GetConfigurationRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandSender.GetConfigurationAsync(chargePointId, request, cancellationToken);
+        var response = await _commandSender.GetConfigurationAsync(chargePointId, request, cancellationToken);
+
+        // 更新缓存
+        if (response.ConfigurationKey != null)
+        {
+            foreach (var item in response.ConfigurationKey)
+            {
+                _stateCache.UpdateConfiguration(chargePointId, new ConfigurationItem
+                {
+                    Key = item.Key,
+                    Value = item.Value,
+                    Readonly = item.Readonly
+                });
+            }
+        }
+
+        return response;
     }
 
-    public Task<ChangeConfigurationResponse> ChangeConfigurationAsync(
+    public async Task<ChangeConfigurationResponse> ChangeConfigurationAsync(
         string chargePointId,
         ChangeConfigurationRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandSender.ChangeConfigurationAsync(chargePointId, request, cancellationToken);
+        var response = await _commandSender.ChangeConfigurationAsync(chargePointId, request, cancellationToken);
+
+        // 如果设置成功，更新缓存
+        if (response.Status == ConfigurationStatus.Accepted || response.Status == ConfigurationStatus.RebootRequired)
+        {
+            _stateCache.UpdateConfiguration(chargePointId, new ConfigurationItem
+            {
+                Key = request.Key,
+                Value = request.Value,
+                Readonly = false // 假设能修改则不是只读，或者我们不知道，但缓存值是最重要的
+            });
+        }
+
+        return response;
     }
 
     public Task<ClearCacheResponse> ClearCacheAsync(
@@ -293,20 +323,35 @@ public class OcppAdapter : IOcppAdapter, IHostedService
         return _commandSender.UpdateFirmwareAsync(chargePointId, request, cancellationToken);
     }
 
-    public Task<GetLocalListVersionResponse> GetLocalListVersionAsync(
+    public async Task<GetLocalListVersionResponse> GetLocalListVersionAsync(
         string chargePointId,
         GetLocalListVersionRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandSender.GetLocalListVersionAsync(chargePointId, request, cancellationToken);
+        var response = await _commandSender.GetLocalListVersionAsync(chargePointId, request, cancellationToken);
+
+        if (response.ListVersion >= 0)
+        {
+            _stateCache.UpdateLocalAuthListVersion(chargePointId, response.ListVersion);
+        }
+
+        return response;
     }
 
-    public Task<SendLocalListResponse> SendLocalListAsync(
+    public async Task<SendLocalListResponse> SendLocalListAsync(
         string chargePointId,
         SendLocalListRequest request,
         CancellationToken cancellationToken = default)
     {
-        return _commandSender.SendLocalListAsync(chargePointId, request, cancellationToken);
+        var response = await _commandSender.SendLocalListAsync(chargePointId, request, cancellationToken);
+
+        // 如果设置成功，更新缓存版本
+        if (response.Status == UpdateStatus.Accepted)
+        {
+            _stateCache.UpdateLocalAuthListVersion(chargePointId, request.ListVersion);
+        }
+
+        return response;
     }
 
     public Task<CancelReservationResponse> CancelReservationAsync(

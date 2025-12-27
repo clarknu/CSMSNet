@@ -245,3 +245,41 @@ var request = new ResetRequest
 var response = await adapter.ResetAsync("CP001", request);
 Console.WriteLine($"重置指令结果: {response.Status}");
 ```
+
+### 5.5. 增强的数据采集与状态缓存
+
+本项目已增强了对充电桩上报数据的解析与缓存能力，支持以下丰富数据的实时访问：
+
+- **电池状态 (BatteryStatus)**: 包含荷电状态 (SoC)、电压、电流、功率、温度等（需充电桩通过 MeterValues 上报）。
+- **实时电气参数**: 连接器的实时电压、电流、功率快照。
+- **充电桩配置**: 缓存充电桩的所有配置项（Configuration Items）。
+- **固件与诊断状态**: 实时跟踪固件更新和诊断日志上传的进度。
+- **本地鉴权列表版本**: 跟踪充电桩当前的 Local Auth List 版本。
+
+访问示例：
+```csharp
+var connectorStatus = adapter.GetConnectorStatus("CP001", 1);
+if (connectorStatus?.Battery != null)
+{
+    Console.WriteLine($"当前SoC: {connectorStatus.Battery.SoC}%, 电池电压: {connectorStatus.Battery.Voltage}V");
+}
+
+var cpStatus = adapter.GetChargePointStatus("CP001");
+if (cpStatus != null)
+{
+    Console.WriteLine($"固件状态: {cpStatus.FirmwareStatus}");
+    // 获取缓存的配置项
+    if (cpStatus.ConfigurationItems.TryGetValue("HeartbeatInterval", out var interval))
+    {
+        Console.WriteLine($"心跳间隔: {interval}");
+    }
+}
+```
+
+### 5.6. 自动询问机制 (Auto-Interrogation)
+
+系统内置了 `ChargePointInterrogator` 服务，实现了“即插即用”的数据同步体验：
+1.  当充电桩上线并完成 BootNotification 握手后，系统自动触发询问流程。
+2.  **自动获取配置**: 发送 `GetConfiguration` 获取充电桩所有配置参数并缓存。
+3.  **自动同步版本**: 获取 `LocalAuthListVersion` 等状态信息。
+4.  **配置同步**: 当通过 CSMS 修改配置 (`ChangeConfiguration`) 成功后，缓存会自动更新，无需重新查询。

@@ -1,4 +1,5 @@
 using CSMSNet.OcppAdapter.Models.V16.Enums;
+using System.Collections.Concurrent;
 
 namespace CSMSNet.OcppAdapter.Models.State;
 
@@ -97,6 +98,67 @@ public class ChargePointStatus
     /// 连接器状态列表
     /// </summary>
     public Dictionary<int, ConnectorStatus> ConnectorStatuses { get; set; } = new();
+
+    /// <summary>
+    /// 固件更新状态
+    /// </summary>
+    public CSMSNet.OcppAdapter.Models.V16.Enums.FirmwareStatus? FirmwareStatus { get; set; }
+
+    /// <summary>
+    /// 诊断日志上传状态
+    /// </summary>
+    public CSMSNet.OcppAdapter.Models.V16.Enums.DiagnosticsStatus? DiagnosticsStatus { get; set; }
+
+    /// <summary>
+    /// 本地鉴权列表版本
+    /// </summary>
+    public int? LocalAuthListVersion { get; set; }
+
+    /// <summary>
+    /// 额定功率
+    /// </summary>
+    public decimal? PowerRating { get; set; }
+
+    /// <summary>
+    /// 连接器数量
+    /// </summary>
+    public int ConnectorCount { get; set; }
+
+    /// <summary>
+    /// 配置项缓存
+    /// </summary>
+    public ConcurrentDictionary<string, string> ConfigurationItems { get; set; } = new();
+}
+
+/// <summary>
+/// 电池状态信息
+/// </summary>
+public class BatteryStatus
+{
+    /// <summary>
+    /// 荷电状态 (%)
+    /// </summary>
+    public decimal? SoC { get; set; }
+
+    /// <summary>
+    /// 电池电压 (V)
+    /// </summary>
+    public decimal? Voltage { get; set; }
+
+    /// <summary>
+    /// 电池电流 (A)
+    /// </summary>
+    public decimal? Current { get; set; }
+
+    /// <summary>
+    /// 电池功率 (W)
+    /// </summary>
+    public decimal? Power { get; set; }
+
+    /// <summary>
+    /// 电池温度 (Celsius)
+    /// </summary>
+    public decimal? Temperature { get; set; }
 }
 
 /// <summary>
@@ -138,6 +200,36 @@ public class ConnectorStatus
     /// 厂商错误代码
     /// </summary>
     public string? VendorErrorCode { get; set; }
+
+    /// <summary>
+    /// 当前关联的交易ID
+    /// </summary>
+    public int? CurrentTransactionId { get; set; }
+
+    /// <summary>
+    /// 实时电压 (V)
+    /// </summary>
+    public decimal? InstantVoltage { get; set; }
+
+    /// <summary>
+    /// 实时电流 (A)
+    /// </summary>
+    public decimal? InstantCurrent { get; set; }
+
+    /// <summary>
+    /// 实时功率 (W)
+    /// </summary>
+    public decimal? InstantPower { get; set; }
+    
+    /// <summary>
+    /// 最近一次电表读数 (Wh)
+    /// </summary>
+    public int? LastMeterValue { get; set; }
+
+    /// <summary>
+    /// 关联的电池信息
+    /// </summary>
+    public BatteryStatus? Battery { get; set; }
 }
 
 /// <summary>
@@ -156,9 +248,9 @@ public class Transaction
     public string ChargePointId { get; set; } = string.Empty;
 
     /// <summary>
-    /// 连接器ID
+    /// 关联的连接器ID列表
     /// </summary>
-    public int ConnectorId { get; set; }
+    public List<int> ConnectorIds { get; set; } = new();
 
     /// <summary>
     /// 卡号
@@ -171,14 +263,19 @@ public class Transaction
     public DateTime StartTime { get; set; }
 
     /// <summary>
-    /// 起始电量（Wh）
+    /// 各连接器的起始电量（ConnectorId -> MeterValue Wh）
     /// </summary>
-    public int MeterStart { get; set; }
+    public Dictionary<int, int> MeterStartValues { get; set; } = new();
 
     /// <summary>
-    /// 当前电量（Wh）
+    /// 各连接器是否已设置正式起始电表值 (ConnectorId -> bool)
     /// </summary>
-    public int? MeterCurrent { get; set; }
+    public Dictionary<int, bool> HasSetOfficialMeterStart { get; set; } = new();
+
+    /// <summary>
+    /// 已消耗的总电量 (Wh)
+    /// </summary>
+    public int? TotalConsumedEnergy { get; set; }
 
     /// <summary>
     /// 预约ID
@@ -189,6 +286,16 @@ public class Transaction
     /// 最近一次电表值更新时间
     /// </summary>
     public DateTime? LastMeterUpdateAt { get; set; }
+
+    /// <summary>
+    /// 当前总功率 (W)
+    /// </summary>
+    public decimal? CurrentPower { get; set; }
+
+    /// <summary>
+    /// 最后更新时间
+    /// </summary>
+    public DateTime LastUpdated { get; set; }
 }
 
 /// <summary>
