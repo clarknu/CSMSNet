@@ -401,3 +401,87 @@ public enum UnitOfMeasure
     Fahrenheit,
     Percent
 }
+
+/// <summary>
+/// 获取组合计划状态
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum GetCompositeScheduleStatus
+{
+    Accepted,
+    Rejected
+}
+
+/// <summary>
+/// 固件状态
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum FirmwareStatus
+{
+    Downloaded,
+    DownloadFailed,
+    Downloading,
+    Idle,
+    InstallationFailed,
+    Installing,
+    Installed
+}
+
+/// <summary>
+/// 诊断状态
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum DiagnosticsStatus
+{
+    Idle,
+    Uploaded,
+    UploadFailed,
+    Uploading
+}
+
+/// <summary>
+/// 消息触发器
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum MessageTrigger
+{
+    BootNotification,
+    DiagnosticsStatusNotification,
+    FirmwareStatusNotification,
+    Heartbeat,
+    MeterValues,
+    StatusNotification
+}
+
+/// <summary>
+/// 触发消息状态
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum TriggerMessageStatus
+{
+    Accepted,
+    Rejected,
+    NotImplemented
+}
+
+/// <summary>
+/// 更新类型
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum UpdateType
+{
+    Differential,
+    Full
+}
+
+/// <summary>
+/// 更新状态
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum UpdateStatus
+{
+    Accepted,
+    Failed,
+    NotSupported,
+    VersionMismatch
+}

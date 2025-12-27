@@ -62,8 +62,20 @@ public class WebSocketSession
     public int MessagesReceived { get; private set; }
 
     /// <summary>
-    /// 断开连接事件
+    /// 是否已验证(通过BootNotification)
     /// </summary>
+    public bool IsVerified { get; private set; }
+
+    /// <summary>
+    /// 验证超时定时器
+    /// </summary>
+    private Timer? _verificationTimer;
+
+    /// <summary>
+    /// 验证超时时间(秒)
+    /// </summary>
+    private const int VerificationTimeoutSeconds = 60;
+
     public event EventHandler<string>? Disconnected;
 
     public WebSocketSession(
@@ -71,7 +83,8 @@ public class WebSocketSession
         string chargePointId,
         string protocolVersion,
         IMessageRouter messageRouter,
-        ILogger<WebSocketSession>? logger = null)
+        ILogger<WebSocketSession>? logger = null,
+        bool isVerified = false)
     {
         _webSocket = webSocket ?? throw new ArgumentNullException(nameof(webSocket));
         _messageRouter = messageRouter ?? throw new ArgumentNullException(nameof(messageRouter));
@@ -83,6 +96,34 @@ public class WebSocketSession
         ConnectedAt = DateTime.UtcNow;
         LastActivityAt = DateTime.UtcNow;
         State = SessionState.Connected;
+        IsVerified = isVerified;
+
+        // 如果未验证，启动超时定时器
+        if (!IsVerified)
+        {
+            _verificationTimer = new Timer(VerificationTimeoutCallback, null, TimeSpan.FromSeconds(VerificationTimeoutSeconds), Timeout.InfiniteTimeSpan);
+            _logger?.LogInformation("Started verification timer for {ChargePointId}, timeout: {Timeout}s", ChargePointId, VerificationTimeoutSeconds);
+        }
+    }
+
+    private void VerificationTimeoutCallback(object? state)
+    {
+        if (!IsVerified && State == SessionState.Connected)
+        {
+            _logger?.LogWarning("Verification timeout for {ChargePointId}, closing connection", ChargePointId);
+            _ = CloseAsync(WebSocketCloseStatus.PolicyViolation, "BootNotification timeout");
+        }
+    }
+
+    /// <summary>
+    /// 标记为已验证
+    /// </summary>
+    public void MarkVerified()
+    {
+        IsVerified = true;
+        _verificationTimer?.Dispose();
+        _verificationTimer = null;
+        _logger?.LogInformation("Session verified for {ChargePointId}", ChargePointId);
     }
 
     /// <summary>

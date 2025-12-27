@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using CSMSNet.OcppAdapter.Configuration;
 using CSMSNet.OcppAdapter.Models.Enums;
+using CSMSNet.OcppAdapter.Models.Events;
 using Microsoft.Extensions.Logging;
 
 namespace CSMSNet.OcppAdapter.Server.Transport;
@@ -16,6 +17,9 @@ public class ConnectionManager : IConnectionManager
     private readonly ILogger<ConnectionManager>? _logger;
     private int _totalConnectionsEver;
     private int _failedConnections;
+
+    public event EventHandler<ChargePointConnectedEventArgs>? OnChargePointConnected;
+    public event EventHandler<ChargePointDisconnectedEventArgs>? OnChargePointDisconnected;
 
     public ConnectionManager(
         OcppAdapterConfiguration configuration,
@@ -79,6 +83,15 @@ public class ConnectionManager : IConnectionManager
                 "Session added for charge point {ChargePointId}, session ID: {SessionId}",
                 session.ChargePointId,
                 session.SessionId);
+            
+            // 触发连接事件
+            OnChargePointConnected?.Invoke(this, new ChargePointConnectedEventArgs
+            {
+                ChargePointId = session.ChargePointId,
+                SessionId = session.SessionId,
+                Timestamp = DateTime.UtcNow
+            });
+            
             return true;
         }
 
@@ -94,6 +107,16 @@ public class ConnectionManager : IConnectionManager
                 "Session removed for charge point {ChargePointId}, session ID: {SessionId}",
                 chargePointId,
                 session.SessionId);
+            
+            // 触发断开连接事件
+            OnChargePointDisconnected?.Invoke(this, new ChargePointDisconnectedEventArgs
+            {
+                ChargePointId = chargePointId,
+                SessionId = session.SessionId,
+                Timestamp = DateTime.UtcNow,
+                DisconnectReason = "Session removed"
+            });
+            
             return true;
         }
 

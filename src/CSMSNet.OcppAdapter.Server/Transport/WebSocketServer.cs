@@ -1,5 +1,7 @@
 using System.Net.WebSockets;
+using CSMSNet.OcppAdapter.Abstractions;
 using CSMSNet.OcppAdapter.Configuration;
+using CSMSNet.OcppAdapter.Models.V16.Enums;
 using CSMSNet.OcppAdapter.Server.Handlers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -16,17 +18,20 @@ public class WebSocketServer
     private readonly IConnectionManager _connectionManager;
     private readonly IMessageRouter _messageRouter;
     private readonly ILogger<WebSocketServer>? _logger;
+    private readonly IOcppAdapter? _ocppAdapter; // 需要访问StateCache, 但最好通过接口或服务
 
     public WebSocketServer(
         OcppAdapterConfiguration configuration,
         IConnectionManager connectionManager,
         IMessageRouter messageRouter,
-        ILogger<WebSocketServer>? logger = null)
+        ILogger<WebSocketServer>? logger = null,
+        IOcppAdapter? ocppAdapter = null)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
         _messageRouter = messageRouter ?? throw new ArgumentNullException(nameof(messageRouter));
         _logger = logger;
+        _ocppAdapter = ocppAdapter;
     }
 
     /// <summary>
@@ -74,12 +79,26 @@ public class WebSocketServer
                 subProtocol,
                 context.Connection.RemoteIpAddress);
 
+            // 检查是否已有 Accepted 状态
+            bool isVerified = false;
+            if (_ocppAdapter != null)
+            {
+                var info = _ocppAdapter.GetChargePointInfo(chargePointId);
+                if (info?.Status == RegistrationStatus.Accepted)
+                {
+                    isVerified = true;
+                    _logger?.LogInformation("Charge point {ChargePointId} is already verified (resuming session)", chargePointId);
+                }
+            }
+
             // 创建会话
             var session = new WebSocketSession(
                 webSocket,
                 chargePointId,
                 subProtocol,
-                _messageRouter);
+                _messageRouter,
+                null, // Logger
+                isVerified);
 
             // 添加到连接管理器
             if (!_connectionManager.AddSession(session))

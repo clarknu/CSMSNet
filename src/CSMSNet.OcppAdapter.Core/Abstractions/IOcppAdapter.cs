@@ -134,6 +134,16 @@ public interface IOcppAdapter
     /// </summary>
     event EventHandler<DataTransferEventArgs>? OnDataTransfer;
 
+    /// <summary>
+    /// DiagnosticsStatusNotification事件
+    /// </summary>
+    event EventHandler<DiagnosticsStatusNotificationEventArgs>? OnDiagnosticsStatusNotification;
+
+    /// <summary>
+    /// FirmwareStatusNotification事件
+    /// </summary>
+    event EventHandler<FirmwareStatusNotificationEventArgs>? OnFirmwareStatusNotification;
+
     #endregion
 
     #region 指令调用接口
@@ -232,6 +242,138 @@ public interface IOcppAdapter
     Task<DataTransferResponse> DataTransferAsync(
         string chargePointId,
         DataTransferRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 更改可用性
+    /// </summary>
+    /// <param name="chargePointId">充电桩ID</param>
+    /// <param name="request">请求对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>响应对象</returns>
+    Task<ChangeAvailabilityResponse> ChangeAvailabilityAsync(
+        string chargePointId,
+        ChangeAvailabilityRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取诊断信息
+    /// </summary>
+    /// <param name="chargePointId">充电桩ID</param>
+    /// <param name="request">请求对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>响应对象</returns>
+    Task<GetDiagnosticsResponse> GetDiagnosticsAsync(
+        string chargePointId,
+        GetDiagnosticsRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 更新固件
+    /// </summary>
+    /// <param name="chargePointId">充电桩ID</param>
+    /// <param name="request">请求对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>响应对象</returns>
+    Task<UpdateFirmwareResponse> UpdateFirmwareAsync(
+        string chargePointId,
+        UpdateFirmwareRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取本地列表版本
+    /// </summary>
+    /// <param name="chargePointId">充电桩ID</param>
+    /// <param name="request">请求对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>响应对象</returns>
+    Task<GetLocalListVersionResponse> GetLocalListVersionAsync(
+        string chargePointId,
+        GetLocalListVersionRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 发送本地列表
+    /// </summary>
+    /// <param name="chargePointId">充电桩ID</param>
+    /// <param name="request">请求对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>响应对象</returns>
+    Task<SendLocalListResponse> SendLocalListAsync(
+        string chargePointId,
+        SendLocalListRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 取消预约
+    /// </summary>
+    /// <param name="chargePointId">充电桩ID</param>
+    /// <param name="request">请求对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>响应对象</returns>
+    Task<CancelReservationResponse> CancelReservationAsync(
+        string chargePointId,
+        CancelReservationRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 立即预约
+    /// </summary>
+    /// <param name="chargePointId">充电桩ID</param>
+    /// <param name="request">请求对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>响应对象</returns>
+    Task<ReserveNowResponse> ReserveNowAsync(
+        string chargePointId,
+        ReserveNowRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 清除充电配置
+    /// </summary>
+    /// <param name="chargePointId">充电桩ID</param>
+    /// <param name="request">请求对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>响应对象</returns>
+    Task<ClearChargingProfileResponse> ClearChargingProfileAsync(
+        string chargePointId,
+        ClearChargingProfileRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取组合计划
+    /// </summary>
+    /// <param name="chargePointId">充电桩ID</param>
+    /// <param name="request">请求对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>响应对象</returns>
+    Task<GetCompositeScheduleResponse> GetCompositeScheduleAsync(
+        string chargePointId,
+        GetCompositeScheduleRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 设置充电配置
+    /// </summary>
+    /// <param name="chargePointId">充电桩ID</param>
+    /// <param name="request">请求对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>响应对象</returns>
+    Task<SetChargingProfileResponse> SetChargingProfileAsync(
+        string chargePointId,
+        SetChargingProfileRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 触发消息
+    /// </summary>
+    /// <param name="chargePointId">充电桩ID</param>
+    /// <param name="request">请求对象</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>响应对象</returns>
+    Task<TriggerMessageResponse> TriggerMessageAsync(
+        string chargePointId,
+        TriggerMessageRequest request,
         CancellationToken cancellationToken = default);
 
     #endregion

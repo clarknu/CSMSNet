@@ -1,3 +1,5 @@
+using CSMSNet.OcppAdapter.Models.V16.Enums;
+
 namespace CSMSNet.OcppAdapter.Models.State;
 
 /// <summary>
@@ -9,6 +11,11 @@ public class ChargePointInfo
     /// 充电桩ID
     /// </summary>
     public string ChargePointId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 注册状态
+    /// </summary>
+    public RegistrationStatus Status { get; set; } = RegistrationStatus.Pending;
 
     /// <summary>
     /// 厂商

@@ -1,4 +1,5 @@
 using CSMSNet.OcppAdapter.Models;
+using CSMSNet.OcppAdapter.Models.Events;
 
 namespace CSMSNet.OcppAdapter.Server.Handlers;
 
@@ -14,4 +15,15 @@ public interface IRequestHandler
     /// <param name="request">请求对象</param>
     /// <returns></returns>
     Task HandleRequestAsync(string chargePointId, OcppRequest request);
+
+    event EventHandler<BootNotificationEventArgs>? OnBootNotification;
+    event EventHandler<HeartbeatEventArgs>? OnHeartbeat;
+    event EventHandler<StatusNotificationEventArgs>? OnStatusNotification;
+    event EventHandler<AuthorizeEventArgs>? OnAuthorize;
+    event EventHandler<StartTransactionEventArgs>? OnStartTransaction;
+    event EventHandler<StopTransactionEventArgs>? OnStopTransaction;
+    event EventHandler<MeterValuesEventArgs>? OnMeterValues;
+    event EventHandler<DataTransferEventArgs>? OnDataTransfer;
+    event EventHandler<DiagnosticsStatusNotificationEventArgs>? OnDiagnosticsStatusNotification;
+    event EventHandler<FirmwareStatusNotificationEventArgs>? OnFirmwareStatusNotification;
 }

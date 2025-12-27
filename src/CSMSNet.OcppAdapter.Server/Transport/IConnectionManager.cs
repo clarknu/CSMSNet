@@ -1,3 +1,5 @@
+using CSMSNet.OcppAdapter.Models.Events;
+
 namespace CSMSNet.OcppAdapter.Server.Transport;
 
 /// <summary>
@@ -49,4 +51,17 @@ public interface IConnectionManager
     /// </summary>
     /// <returns>活跃会话数</returns>
     int GetActiveSessionCount();
+    
+    /// <summary>
+    /// 清理超时会话
+    /// </summary>
+    Task CleanupInactiveSessions();
+    
+    /// <summary>
+    /// 获取连接指标
+    /// </summary>
+    Models.ConnectionMetrics GetConnectionMetrics();
+
+    event EventHandler<ChargePointConnectedEventArgs>? OnChargePointConnected;
+    event EventHandler<ChargePointDisconnectedEventArgs>? OnChargePointDisconnected;
 }

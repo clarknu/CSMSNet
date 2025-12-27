@@ -20,7 +20,7 @@ public class DataTransferRequest : OcppRequest
     /// 消息ID
     /// </summary>
     [JsonPropertyName("messageId")]
-    public string? MessageId { get; set; }
+    public string? TransferMessageId { get; set; }
 
     /// <summary>
     /// 数据

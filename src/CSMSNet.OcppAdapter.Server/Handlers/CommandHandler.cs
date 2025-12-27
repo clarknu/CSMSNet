@@ -192,4 +192,103 @@ public class CommandHandler
         return SendCommandAsync<DataTransferRequest, DataTransferResponse>(
             chargePointId, request, cancellationToken);
     }
+
+    public Task<ChangeAvailabilityResponse> ChangeAvailabilityAsync(
+        string chargePointId,
+        ChangeAvailabilityRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SendCommandAsync<ChangeAvailabilityRequest, ChangeAvailabilityResponse>(
+            chargePointId, request, cancellationToken);
+    }
+
+    public Task<GetDiagnosticsResponse> GetDiagnosticsAsync(
+        string chargePointId,
+        GetDiagnosticsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SendCommandAsync<GetDiagnosticsRequest, GetDiagnosticsResponse>(
+            chargePointId, request, cancellationToken);
+    }
+
+    public Task<UpdateFirmwareResponse> UpdateFirmwareAsync(
+        string chargePointId,
+        UpdateFirmwareRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SendCommandAsync<UpdateFirmwareRequest, UpdateFirmwareResponse>(
+            chargePointId, request, cancellationToken);
+    }
+
+    public Task<GetLocalListVersionResponse> GetLocalListVersionAsync(
+        string chargePointId,
+        GetLocalListVersionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SendCommandAsync<GetLocalListVersionRequest, GetLocalListVersionResponse>(
+            chargePointId, request, cancellationToken);
+    }
+
+    public Task<SendLocalListResponse> SendLocalListAsync(
+        string chargePointId,
+        SendLocalListRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SendCommandAsync<SendLocalListRequest, SendLocalListResponse>(
+            chargePointId, request, cancellationToken);
+    }
+
+    public Task<CancelReservationResponse> CancelReservationAsync(
+        string chargePointId,
+        CancelReservationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SendCommandAsync<CancelReservationRequest, CancelReservationResponse>(
+            chargePointId, request, cancellationToken);
+    }
+
+    public Task<ReserveNowResponse> ReserveNowAsync(
+        string chargePointId,
+        ReserveNowRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SendCommandAsync<ReserveNowRequest, ReserveNowResponse>(
+            chargePointId, request, cancellationToken);
+    }
+
+    public Task<ClearChargingProfileResponse> ClearChargingProfileAsync(
+        string chargePointId,
+        ClearChargingProfileRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SendCommandAsync<ClearChargingProfileRequest, ClearChargingProfileResponse>(
+            chargePointId, request, cancellationToken);
+    }
+
+    public Task<GetCompositeScheduleResponse> GetCompositeScheduleAsync(
+        string chargePointId,
+        GetCompositeScheduleRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SendCommandAsync<GetCompositeScheduleRequest, GetCompositeScheduleResponse>(
+            chargePointId, request, cancellationToken);
+    }
+
+    public Task<SetChargingProfileResponse> SetChargingProfileAsync(
+        string chargePointId,
+        SetChargingProfileRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SendCommandAsync<SetChargingProfileRequest, SetChargingProfileResponse>(
+            chargePointId, request, cancellationToken);
+    }
+
+    public Task<TriggerMessageResponse> TriggerMessageAsync(
+        string chargePointId,
+        TriggerMessageRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SendCommandAsync<TriggerMessageRequest, TriggerMessageResponse>(
+            chargePointId, request, cancellationToken);
+    }
 }

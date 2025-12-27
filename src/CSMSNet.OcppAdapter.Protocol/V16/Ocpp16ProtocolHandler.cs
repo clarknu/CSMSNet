@@ -36,6 +36,8 @@ public class Ocpp16ProtocolHandler : IOcppProtocolHandler
             ["StartTransaction"] = typeof(StartTransactionRequest),
             ["StopTransaction"] = typeof(StopTransactionRequest),
             ["DataTransfer"] = typeof(DataTransferRequest),
+            ["DiagnosticsStatusNotification"] = typeof(DiagnosticsStatusNotificationRequest),
+            ["FirmwareStatusNotification"] = typeof(FirmwareStatusNotificationRequest),
             // 系统下发指令
             ["RemoteStartTransaction"] = typeof(RemoteStartTransactionRequest),
             ["RemoteStopTransaction"] = typeof(RemoteStopTransactionRequest),
@@ -44,6 +46,17 @@ public class Ocpp16ProtocolHandler : IOcppProtocolHandler
             ["GetConfiguration"] = typeof(GetConfigurationRequest),
             ["ChangeConfiguration"] = typeof(ChangeConfigurationRequest),
             ["ClearCache"] = typeof(ClearCacheRequest),
+            ["ChangeAvailability"] = typeof(ChangeAvailabilityRequest),
+            ["GetDiagnostics"] = typeof(GetDiagnosticsRequest),
+            ["UpdateFirmware"] = typeof(UpdateFirmwareRequest),
+            ["GetLocalListVersion"] = typeof(GetLocalListVersionRequest),
+            ["SendLocalList"] = typeof(SendLocalListRequest),
+            ["CancelReservation"] = typeof(CancelReservationRequest),
+            ["ReserveNow"] = typeof(ReserveNowRequest),
+            ["ClearChargingProfile"] = typeof(ClearChargingProfileRequest),
+            ["GetCompositeSchedule"] = typeof(GetCompositeScheduleRequest),
+            ["SetChargingProfile"] = typeof(SetChargingProfileRequest),
+            ["TriggerMessage"] = typeof(TriggerMessageRequest),
         };
 
         // 初始化响应类型映射
@@ -57,6 +70,8 @@ public class Ocpp16ProtocolHandler : IOcppProtocolHandler
             ["StartTransaction"] = typeof(StartTransactionResponse),
             ["StopTransaction"] = typeof(StopTransactionResponse),
             ["DataTransfer"] = typeof(DataTransferResponse),
+            ["DiagnosticsStatusNotification"] = typeof(DiagnosticsStatusNotificationResponse),
+            ["FirmwareStatusNotification"] = typeof(FirmwareStatusNotificationResponse),
             // 系统下发指令响应
             ["RemoteStartTransaction"] = typeof(RemoteStartTransactionResponse),
             ["RemoteStopTransaction"] = typeof(RemoteStopTransactionResponse),
@@ -65,6 +80,17 @@ public class Ocpp16ProtocolHandler : IOcppProtocolHandler
             ["GetConfiguration"] = typeof(GetConfigurationResponse),
             ["ChangeConfiguration"] = typeof(ChangeConfigurationResponse),
             ["ClearCache"] = typeof(ClearCacheResponse),
+            ["ChangeAvailability"] = typeof(ChangeAvailabilityResponse),
+            ["GetDiagnostics"] = typeof(GetDiagnosticsResponse),
+            ["UpdateFirmware"] = typeof(UpdateFirmwareResponse),
+            ["GetLocalListVersion"] = typeof(GetLocalListVersionResponse),
+            ["SendLocalList"] = typeof(SendLocalListResponse),
+            ["CancelReservation"] = typeof(CancelReservationResponse),
+            ["ReserveNow"] = typeof(ReserveNowResponse),
+            ["ClearChargingProfile"] = typeof(ClearChargingProfileResponse),
+            ["GetCompositeSchedule"] = typeof(GetCompositeScheduleResponse),
+            ["SetChargingProfile"] = typeof(SetChargingProfileResponse),
+            ["TriggerMessage"] = typeof(TriggerMessageResponse),
         };
     }
 
