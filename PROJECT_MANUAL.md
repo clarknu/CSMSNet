@@ -4,14 +4,14 @@
 
 ## 1. 项目简介
 
-CSMSNet.OcppAdapter 是一个基于 .NET 9 开发的高性能 OCPP (Open Charge Point Protocol) 1.6 协议适配器。它作为充电站管理系统 (CSMS) 的接入层，负责处理充电桩与系统之间的通信，支持 WebSocket 连接、JSON 消息序列化/反序列化、协议验证及状态管理。
+CSMSNet.Ocpp 是一个基于 .NET 10 开发的高性能 OCPP (Open Charge Point Protocol) 1.6 协议适配器。它作为充电站管理系统 (CSMS) 的接入层，负责处理充电桩与系统之间的通信，支持 WebSocket 连接、JSON 消息序列化/反序列化、协议验证及状态管理。
 
 ## 2. 代码结构与用途
 
-解决方案 `CSMSNet.OcppAdapter.sln` 包含以下核心项目：
+解决方案 `CSMSNet.sln` 包含以下核心项目：
 
-### 2.1. CSMSNet.OcppAdapter.Core
-**用途**: 核心类库，定义了项目的基础架构、数据模型和抽象接口。
+### 2.1. CSMSNet.Ocpp
+**用途**: 核心类库，集成了协议处理、数据模型和服务器实现逻辑。
 - **Abstractions/**: 定义核心接口，如 `IOcppAdapter` (主入口), `IOcppProtocolHandler` (协议处理), `IStateCache` (状态缓存)。
 - **Models/**: 包含所有 OCPP 数据模型。
   - **V16/**: OCPP 1.6 版本的特定模型（Requests, Responses, Enums, Common Types）。
@@ -19,44 +19,39 @@ CSMSNet.OcppAdapter 是一个基于 .NET 9 开发的高性能 OCPP (Open Charge 
   - **State/**: 定义内部状态模型（如 `ChargePointState`, `Transaction`）。
 - **Configuration/**: 定义配置类 `OcppAdapterConfiguration`。
 - **Exceptions/**: 定义自定义异常 `OcppException`。
+- **Transport/**: WebSocket 通信层，包含 `ConnectionManager` 和 `OcppWebSocketMiddleware`。
+- **Handlers/**: 消息处理逻辑。
 
-### 2.2. CSMSNet.OcppAdapter.Protocol
-**用途**: 协议处理层，专注于 OCPP 消息的解析、验证和构建。
-- **V16/Ocpp16ProtocolHandler.cs**: 实现 OCPP 1.6 协议的具体逻辑，处理 JSON 序列化、消息类型映射和验证。
-- **V16/Ocpp16Constants.cs**: 定义协议相关的常量。
+### 2.2. CSMSNet.Web
+**用途**: 基于 ASP.NET Core 的 Web 主机项目，集成了 Blazor Server 和 WebAssembly。
+- **Program.cs**: 应用入口，负责服务注册和中间件配置。
+- **Components/**: Blazor 页面和组件。
+- 该项目作为 OCPP 服务器的宿主，同时也提供 Web 管理界面。
 
-### 2.3. CSMSNet.OcppAdapter.Server
-**用途**: 服务器实现层，负责网络通信和业务逻辑路由。
-- **OcppAdapter.cs**: 适配器的主要实现类，协调网络层、协议层和状态缓存。
-- **Transport/**: WebSocket 服务器实现，处理连接管理 (`ConnectionManager`) 和消息收发。
-- **Handlers/**: 消息路由和处理器 (`MessageRouter`, `RequestHandler`)，将接收到的 OCPP 请求分发到对应的处理逻辑。
-- **State/**: 状态缓存实现 (`StateCache`)，维护充电桩的实时状态。
+### 2.3. CSMSNet.Web.Client
+**用途**: Blazor WebAssembly 客户端项目，用于前端交互。
 
-### 2.4. CSMSNet.OcppAdapter.Tests
+### 2.4. CSMSNet.Ocpp.Tests
 **用途**: 单元测试项目，确保核心功能的正确性。
 
 ## 3. 关联依赖关系
 
-项目间的依赖关系设计遵循整洁架构原则，从内向外依赖：
+项目间的依赖关系设计如下：
 
 ```mermaid
 graph TD
-    Server[CSMSNet.OcppAdapter.Server] --> Core[CSMSNet.OcppAdapter.Core]
-    Server --> Protocol[CSMSNet.OcppAdapter.Protocol]
-    Protocol --> Core
-    Tests[CSMSNet.OcppAdapter.Tests] --> Core
-    Tests --> Server
-    Tests --> Protocol
+    Web[CSMSNet.Web] --> Ocpp[CSMSNet.Ocpp]
+    Tests[CSMSNet.Ocpp.Tests] --> Ocpp
+    Ocpp --> AspNetCore[ASP.NET Core Shared Framework]
 ```
 
-- **Core**: 不依赖其他项目，仅依赖基础 .NET 库。
-- **Protocol**: 依赖 Core，实现其中定义的协议接口。
-- **Server**: 依赖 Core 和 Protocol，组装并运行服务。
+- **CSMSNet.Ocpp**: 核心库，不依赖具体的 Web 项目。
+- **CSMSNet.Web**: 引用 Ocpp 库，将其作为服务集成到 Web 应用中。
 
 ## 4. 项目功能
 
 ### 4.1. 基础通信
-- **WebSocket 服务器**: 支持 `/ocpp/{chargePointId}` 路径连接。
+- **WebSocket 服务器**: 支持 `/ocpp/{chargePointId}` 路径连接（通过 Web 项目配置）。
 - **心跳机制**: 自动处理 WebSocket Ping/Pong 及 OCPP Heartbeat。
 - **消息封装**: 支持 OCPP-J (JSON) 格式的 Call, CallResult, CallError 消息。
 
@@ -80,78 +75,83 @@ graph TD
 
 ## 5. 使用方法与示例代码
 
-### 5.1. 初始化与启动服务
+### 5.1. 在 ASP.NET Core 中集成
 
-首先，创建配置并实例化 `OcppAdapter`，然后启动服务。
+在 `Program.cs` 中注册服务并配置中间件：
 
 ```csharp
-using CSMSNet.OcppAdapter.Server;
-using CSMSNet.OcppAdapter.Configuration;
-using Microsoft.Extensions.Logging;
+using CSMSNet.Ocpp;
 
-// 1. 创建配置
-var config = new OcppAdapterConfiguration
+var builder = WebApplication.CreateBuilder(args);
+
+// 1. 注册 OCPP 适配器服务
+// 将使用 appsettings.json 中的 "OcppAdapter" 节点配置
+builder.Services.AddOcppAdapter(builder.Configuration);
+
+var app = builder.Build();
+
+// 2. 启用 WebSocket
+app.UseWebSockets();
+
+// 3. 映射 OCPP 端点
+// 这将监听 ws://your-host/ocpp/{chargePointId}
+app.Map("/ocpp", b => b.UseOcppAdapter());
+
+app.Run();
+```
+
+**appsettings.json 配置示例**:
+
+```json
 {
-    ListenUrl = "http://+:8080/",       // 监听地址和端口
-    HeartbeatInterval = TimeSpan.FromMinutes(5),
-    BusinessEventTimeout = TimeSpan.FromSeconds(30),
-    IgnoreCertificateErrors = true      // 开发环境可开启
-};
-
-// 2. 创建 Logger (可选，实际项目中推荐使用依赖注入)
-ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-ILogger<OcppAdapter> logger = loggerFactory.CreateLogger<OcppAdapter>();
-
-// 3. 实例化适配器
-var adapter = new OcppAdapter(config, loggerFactory);
-
-// 4. 启动服务
-await adapter.StartAsync();
-Console.WriteLine("OCPP Server started on ws://localhost:8080/ocpp/{chargePointId}");
-
-// ... 保持程序运行 ...
-// await adapter.StopAsync(); // 停止服务
+  "OcppAdapter": {
+    "HeartbeatInterval": "00:05:00",
+    "BusinessEventTimeout": "00:00:30",
+    "SessionInactivityTimeout": "00:30:00"
+  }
+}
 ```
 
 ### 5.2. 监听事件
 
-适配器通过 C# 事件机制暴露充电桩的各种行为，您可以订阅这些事件来处理业务逻辑。
+适配器通过 C# 事件机制暴露充电桩的各种行为，您可以订阅这些事件来处理业务逻辑。通常建议创建一个 `HostedService` 来订阅这些事件。
 
 ```csharp
-// 监听充电桩连接
-adapter.OnChargePointConnected += (sender, args) =>
+public class OcppEventHandler : IHostedService
 {
-    Console.WriteLine($"充电桩已连接: {args.ChargePointId}, 协议: {args.ProtocolVersion}");
-};
+    private readonly IOcppAdapter _adapter;
+    private readonly ILogger<OcppEventHandler> _logger;
 
-// 监听 BootNotification (上线通知)
-adapter.OnBootNotification += (sender, args) =>
-{
-    Console.WriteLine($"收到 BootNotification: {args.ChargePointId}");
-    Console.WriteLine($"厂商: {args.Request.ChargePointVendor}, 型号: {args.Request.ChargePointModel}");
-    
-    // 注意: 适配器会自动回复 Accepted，您主要在此处记录日志或更新数据库
-};
-
-// 监听 StartTransaction (开始充电)
-adapter.OnStartTransaction += (sender, args) =>
-{
-    Console.WriteLine($"充电开始: {args.ChargePointId}, 事务ID: {args.TransactionId}");
-    Console.WriteLine($"卡号: {args.Request.IdTag}, 连接器: {args.Request.ConnectorId}");
-};
-
-// 监听 MeterValues (电表数据)
-adapter.OnMeterValues += (sender, args) =>
-{
-    Console.WriteLine($"收到电表数据: {args.ChargePointId}, 事务ID: {args.Request.TransactionId}");
-    foreach(var meterValue in args.Request.MeterValue)
+    public OcppEventHandler(IOcppAdapter adapter, ILogger<OcppEventHandler> logger)
     {
-        foreach(var sampledValue in meterValue.SampledValue)
-        {
-            Console.WriteLine($"  {sampledValue.Measurand ?? "Energy.Active.Import.Register"}: {sampledValue.Value} {sampledValue.Unit}");
-        }
+        _adapter = adapter;
+        _logger = logger;
     }
-};
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        // 监听充电桩连接
+        _adapter.OnChargePointConnected += (sender, args) =>
+        {
+            _logger.LogInformation($"充电桩已连接: {args.ChargePointId}, 协议: {args.ProtocolVersion}");
+        };
+
+        // 监听 BootNotification (上线通知)
+        _adapter.OnBootNotification += (sender, args) =>
+        {
+            _logger.LogInformation($"收到 BootNotification: {args.ChargePointId}");
+            // 注意: 适配器会自动回复 Accepted，您主要在此处记录日志或更新数据库
+        };
+
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        // 解除订阅逻辑（可选）
+        return Task.CompletedTask;
+    }
+}
 ```
 
 ### 5.3. 查询状态
@@ -239,51 +239,4 @@ var request = new ResetRequest
 
 var response = await adapter.ResetAsync("CP001", request);
 Console.WriteLine($"重置指令结果: {response.Status}");
-```
-
-#### 解锁连接器 (UnlockConnector)
-```csharp
-using CSMSNet.OcppAdapter.Models.V16.Requests;
-
-var request = new UnlockConnectorRequest
-{
-    ConnectorId = 1
-};
-
-var response = await adapter.UnlockConnectorAsync("CP001", request);
-Console.WriteLine($"解锁结果: {response.Status}"); // Accepted, Rejected, UnlockFailed 等
-```
-
-#### 修改配置 (ChangeConfiguration)
-```csharp
-using CSMSNet.OcppAdapter.Models.V16.Requests;
-
-// 例如：修改心跳间隔为 600 秒
-var request = new ChangeConfigurationRequest
-{
-    Key = "HeartbeatInterval",
-    Value = "600"
-};
-
-var response = await adapter.ChangeConfigurationAsync("CP001", request);
-Console.WriteLine($"配置修改结果: {response.Status}"); // Accepted, Rejected, RebootRequired, NotSupported
-```
-
-#### 获取配置 (GetConfiguration)
-```csharp
-using CSMSNet.OcppAdapter.Models.V16.Requests;
-
-var request = new GetConfigurationRequest
-{
-    Key = new[] { "HeartbeatInterval", "MeterValueSampleInterval" } // 要查询的键列表
-};
-
-var response = await adapter.GetConfigurationAsync("CP001", request);
-if (response.ConfigurationKey != null)
-{
-    foreach (var configItem in response.ConfigurationKey)
-    {
-        Console.WriteLine($"{configItem.Key}: {configItem.Value} (只读: {configItem.Readonly})");
-    }
-}
 ```
