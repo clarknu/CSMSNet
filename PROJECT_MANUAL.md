@@ -283,3 +283,13 @@ if (cpStatus != null)
 2.  **自动获取配置**: 发送 `GetConfiguration` 获取充电桩所有配置参数并缓存。
 3.  **自动同步版本**: 获取 `LocalAuthListVersion` 等状态信息。
 4.  **配置同步**: 当通过 CSMS 修改配置 (`ChangeConfiguration`) 成功后，缓存会自动更新，无需重新查询。
+
+## 6. 协议一致性说明
+
+本项目的数据模型和消息处理逻辑已经过严格验证，确保与 `protocols/OCPP_1.6_documentation/schemas/json` 目录下的官方 JSON Schema 定义完全一致。
+
+- **模型映射**: 所有请求和响应类均使用 `[JsonPropertyName]` 特性准确映射到协议字段。
+- **枚举兼容**: `OcppEnums.cs` 涵盖了协议定义的所有枚举值，包括特殊字符值的转换。
+- **类型安全**: 严格区分可选/必填字段，使用可空类型（Nullable Types）处理协议中的 Optional 字段。
+
+这保证了适配器能够与符合 OCPP 1.6 标准的任何充电桩无缝通信。
